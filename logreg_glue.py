@@ -1,6 +1,10 @@
+import pandas as pd
+import scipy.sparse
+import os
+import wandb
+
 from argparse import ArgumentParser
 from datasets import load_dataset
-
 from pprint import pprint
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
@@ -53,9 +57,19 @@ def main():
 
     # Load and preprocess dataset using TF-IDF vectorization
     dataset = load_dataset("glue", args.task)
-    vectorizer = TfidfVectorizer().fit(dataset["train"]["sentence"])
-    X_train = vectorizer.transform(dataset["train"]["sentence"])
-    X_test = vectorizer.transform(dataset["validation"]["sentence"])
+    if args.task == "rte":
+        vectorizer1 = TfidfVectorizer().fit(dataset["train"]["sentence1"])
+        X_train1 = vectorizer1.transform(dataset["train"]["sentence1"])
+        X_test1 = vectorizer1.transform(dataset["validation"]["sentence1"])
+        vectorizer2 = TfidfVectorizer().fit(dataset["train"]["sentence2"])
+        X_train2 = vectorizer2.transform(dataset["train"]["sentence2"])
+        X_test2 = vectorizer2.transform(dataset["validation"]["sentence2"])
+        X_train = scipy.sparse.hstack((X_train1, X_train2))
+        X_test = scipy.sparse.hstack((X_test1, X_test2))
+    else:
+        vectorizer = TfidfVectorizer().fit(dataset["train"]["sentence"])
+        X_train = vectorizer.transform(dataset["train"]["sentence"])
+        X_test = vectorizer.transform(dataset["validation"]["sentence"])
 
     # Train logistic regression and get predictions
     model = LogisticRegression(max_iter=1000, random_state=args.seed).fit(X_train, dataset["train"]["label"])
@@ -72,13 +86,13 @@ def main():
         run = wandb.init(
             project=args.wandb_project,
             entity=args.wandb_entity,
-            tags=[args.model, args.task],
+            tags=["logreg", args.task],
         )
-        wandb.log(final_metrics)
+        wandb.log(metrics)
         run.finish()
     else:
         print("Final metrics:")
-        pprint(final_metrics)
+        pprint(metrics)
 
 
 if __name__ == "__main__":

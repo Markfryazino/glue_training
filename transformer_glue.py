@@ -55,10 +55,10 @@ def log_metrics(metrics, filename, task, model, seed):
         "model": [model],
         "task": [task],
         "seed": [seed],
-        "train_accuracy": [metrics["train/accuracy"]],
-        "test_accuracy": [metrics["test/accuracy"]],
-        "train_f1": [metrics["train/f1"]],
-        "test_f1": [metrics["test/f1"]]
+        "train_accuracy": [metrics["train_accuracy"]],
+        "test_accuracy": [metrics["test_accuracy"]],
+        "train_f1": [metrics["train_f1"]],
+        "test_f1": [metrics["test_f1"]]
     })
 
     if os.path.isfile(filename):
@@ -76,6 +76,10 @@ def main():
 
     # Load and preprocess dataset
     dataset = load_dataset("glue", args.task)
+    if args.task == "rte":
+        dataset = dataset.map(lambda x: {"sentence": x["sentence1"] + " <s> " + x["sentence2"]},
+                              batched=False, load_from_cache_file=False)
+
     tokenized = dataset.map(lambda examples: tokenizer(examples["sentence"]), batched=True, 
                             load_from_cache_file=False).remove_columns(["idx", "sentence"])
 
@@ -113,7 +117,7 @@ def main():
     # Collect and log metrics
     final_metrics = trainer.evaluate(tokenized["train"], metric_key_prefix="train")
     final_metrics.update(trainer.evaluate(tokenized["validation"], metric_key_prefix="test"))
-    log_metrics(metrics, args.log_file, args.task, args.model, args.seed)
+    log_metrics(final_metrics, args.log_file, args.task, args.model, args.seed)
     if args.use_wandb:
         wandb.log(final_metrics)
         run.finish()
